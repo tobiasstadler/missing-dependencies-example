@@ -1,0 +1,70 @@
+version: '3'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: false
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    ports:
+      - '5601:5601'
+    depends_on:
+      - elasticsearch
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:7.17.0
+    volumes:
+      - ./apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    depends_on:
+      - elasticsearch
+      - kibana
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  producer:
+    build: .
+    environment:
+      MODE: producer
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      ELASTIC_APM_SERVICE_NAME: producer
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_APPLICATION_PACKAGES: com.github.tobiasstadler
+    depends_on:
+      - apm-server
+      - kafka
+  consumer1:
+    build: .
+    environment:
+      MODE: consumer
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      ELASTIC_APM_SERVICE_NAME: consumer1
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_APPLICATION_PACKAGES: com.github.tobiasstadler
+    depends_on:
+      - apm-server
+      - kafka
+  consumer2:
+    build: .
+    environment:
+      MODE: consumer
+      KAFKA_BOOTSTRAP_SERVER: kafka:9092
+      ELASTIC_APM_SERVICE_NAME: consumer2
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_APPLICATION_PACKAGES: com.github.tobiasstadler
+    depends_on:
+      - apm-server
+      - kafka
